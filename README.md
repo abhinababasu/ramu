@@ -3,6 +3,12 @@
 ## Overview
 Ramu is a cross-platform .NET MAUI application that allows users to record speech in multiple languages, transcribe it using Azure Speech-to-Text, and interact with an AI assistant (powered by Azure OpenAI's GPT-3.5 Turbo). The app supports English, Hindi, Bengali, and Spanish, and dynamically updates the UI based on the selected language.
 
+## Demo
+
+<video src="./recording.mp4" controls width="600">
+    Your browser does not support the video tag.
+</video>
+
 ## Features
 - Record audio and transcribe speech in multiple languages
 - Get AI-powered responses from Azure OpenAI (ChatGPT style)
