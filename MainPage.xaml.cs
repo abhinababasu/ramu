@@ -10,12 +10,29 @@ public partial class MainPage : ContentPage
 	private IAudioRecorder _recorder;
 	private bool _isRecording = false;
 
+	private readonly Dictionary<string, string> _languageCodes = new()
+	{
+		{ "English", "en-US" },
+		{ "Hindi", "hi-IN" },
+		{ "Bengali", "bn-IN" },
+		{ "Spanish", "es-ES" }
+	};
+
 	public MainPage()
 	{
 		InitializeComponent();
 		_audioManager = AudioManager.Current;
 		_recorder = _audioManager.CreateRecorder();
+
+		// Initialize language picker
+		languagePicker.ItemsSource = _languageCodes.Keys.ToList();
+		languagePicker.SelectedIndex = 0; // Default to first language (English)
 	}
+
+	private string SelectedLanguageCode =>
+		languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageCodes.Count
+			? _languageCodes[languagePicker.Items[languagePicker.SelectedIndex]]
+			: "en-US";
 
 	private async void OnRecordAudioClicked(object sender, EventArgs e)
 	{
@@ -59,7 +76,6 @@ public partial class MainPage : ContentPage
 			using var audioStream = audioSource.GetAudioStream();
 
 			// Prepare HTTP client
-			var endpoint = "https://westus3.api.cognitive.microsoft.com/speechtotext/v3.1/transcriptions";
 			var apiKey = Environment.GetEnvironmentVariable("AzSpeechKey");
 			if (string.IsNullOrEmpty(apiKey))
 				throw new InvalidOperationException("AzSpeechKey environment variable not set.");
@@ -68,8 +84,9 @@ public partial class MainPage : ContentPage
 			using var client = new HttpClient();
 			client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", apiKey);
 
-			// Prepare request
-			var requestUri = "https://westus3.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US";
+			// Use selected language
+			var languageCode = SelectedLanguageCode;
+			var requestUri = $"https://westus3.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language={languageCode}";
 			using var content = new StreamContent(audioStream);
 			content.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
 
@@ -88,7 +105,11 @@ public partial class MainPage : ContentPage
 		{
 			await MainThread.InvokeOnMainThreadAsync(async () =>
 			{
-				await Application.Current.MainPage.DisplayAlert("Error", $"Transcription failed: {ex.Message}", "OK");
+				var page = this.Window?.Page;
+				if (page != null)
+				{
+					await page.DisplayAlert("Error", $"Transcription failed: {ex.Message}", "OK");
+				}
 			});
 			return null;
 		}

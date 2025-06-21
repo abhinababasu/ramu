@@ -6,6 +6,7 @@
              x:Class="ramu.MainPage">
 
     <VerticalStackLayout>
+        <Picker x:Name="languagePicker" Title="Select Language" />
         <Button x:Name="recordAudioButton" Text="Record Audio" Clicked="OnRecordAudioClicked" />
         <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
             <BlazorWebView.RootComponents>
