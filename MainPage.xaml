@@ -5,14 +5,18 @@
              xmlns:components="clr-namespace:ramu.Components"
              x:Class="ramu.MainPage">
 
-    <VerticalStackLayout>
-        <Picker x:Name="languagePicker" Title="Select Language" />
-        <Button x:Name="recordAudioButton" Text="Ask Ramu" Clicked="OnRecordAudioClicked" />
-        <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
-            <BlazorWebView.RootComponents>
-                <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />
-            </BlazorWebView.RootComponents>
-        </BlazorWebView>
-    </VerticalStackLayout>
+    <Grid RowDefinitions="*,Auto,Auto" ColumnDefinitions="*">
+        <ScrollView x:Name="resultScrollView" Grid.Row="0" Padding="0" Margin="10">
+            <Label x:Name="resultText" FontSize="22" LineBreakMode="WordWrap" HorizontalOptions="Fill" VerticalOptions="Fill" />
+        </ScrollView>
+        <Border Grid.Row="1" StrokeThickness="0" StrokeShape="RoundRectangle 10" BackgroundColor="Transparent" Margin="0,20,0,10" Padding="20">
+            <Button x:Name="recordAudioButton" Text="Ask Ramu 🎤" Clicked="OnRecordAudioClicked"
+            FontSize="28" HeightRequest="80" CornerRadius="40" HorizontalOptions="Fill" />
+        </Border>
+        <Border Grid.Row="2" StrokeThickness="0" StrokeShape="RoundRectangle 10" BackgroundColor="Transparent" Margin="0,0,0,10" Padding="20">
+            <Picker x:Name="languagePicker" Title="Select Language" HorizontalOptions="Fill" HorizontalTextAlignment="Center" />
+        </Border>
+        <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html" IsVisible="False" />
+    </Grid>
 
 </ContentPage>

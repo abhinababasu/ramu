@@ -2,6 +2,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Diagnostics;
+using Microsoft.Maui.Controls;
 namespace ramu;
 
 public partial class MainPage : ContentPage
@@ -10,13 +11,16 @@ public partial class MainPage : ContentPage
 	private IAudioRecorder _recorder;
 	private bool _isRecording = false;
 
-	private readonly Dictionary<string, string> _languageCodes = new()
+	private readonly Dictionary<string, (string SpeechCode, string AssistantName)> _languageCodes = new()
 	{
-		{ "English", "en-US" },
-		{ "Hindi", "hi-IN" },
-		{ "Bengali", "bn-IN" },
-		{ "Spanish", "es-ES" }
+		{ "English", ("en-US", "Ramu") },
+		{ "Hindi", ("hi-IN", "रामु") },
+		{ "Bengali", ("bn-IN", "রামু ") },
+		{ "Spanish", ("es-ES", "Ramu") }
 	};
+
+
+	private FormattedString _resultFormattedString = new FormattedString();
 
 	public MainPage()
 	{
@@ -27,12 +31,18 @@ public partial class MainPage : ContentPage
 		// Initialize language picker
 		languagePicker.ItemsSource = _languageCodes.Keys.ToList();
 		languagePicker.SelectedIndex = 0; // Default to first language (English)
+		languagePicker.SelectedIndexChanged += LanguagePicker_SelectedIndexChanged;
 	}
 
 	private string SelectedLanguageCode =>
 		languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageCodes.Count
-			? _languageCodes[languagePicker.Items[languagePicker.SelectedIndex]]
+			? _languageCodes[languagePicker.Items[languagePicker.SelectedIndex]].SpeechCode
 			: "en-US";
+
+	private string SelectedAssistantName =>
+		languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageCodes.Count
+			? _languageCodes[languagePicker.Items[languagePicker.SelectedIndex]].AssistantName
+			: "Ramu";
 
 	private async void OnRecordAudioClicked(object sender, EventArgs e)
 	{
@@ -45,18 +55,19 @@ public partial class MainPage : ContentPage
 		else
 		{
 			recordAudioButton.IsEnabled = false; // Disable button to prevent multiple clicks
-			// Change button text to indicate transcription 
+												 // Change button text to indicate transcription 
 			recordAudioButton.Text = "Thinking...";
 			// Stop recording and show text
 			var transcription = await TranscribeAudioAsync();
 			if (!string.IsNullOrEmpty(transcription))
 			{
-				await DisplayAlert("Transcription", transcription, "OK");
+				_resultFormattedString.Spans.Add(new Span { Text = transcription + Environment.NewLine, FontAttributes = FontAttributes.Bold });
 			}
 			else
 			{
-				await DisplayAlert("Transcription", "No transcription result.", "OK");
+				_resultFormattedString.Spans.Add(new Span { Text = "No transcription result." + Environment.NewLine, FontAttributes = FontAttributes.Italic });
 			}
+
 			_isRecording = false;
 			recordAudioButton.IsEnabled = true; // Re-enable button
 
@@ -66,16 +77,21 @@ public partial class MainPage : ContentPage
 				var aiResponse = await GetAzureOpenAIChatResponseAsync(transcription);
 				if (!string.IsNullOrEmpty(aiResponse))
 				{
-					await DisplayAlert("AI Response", aiResponse, "OK");
+					_resultFormattedString.Spans.Add(new Span { Text = aiResponse + Environment.NewLine + Environment.NewLine });
 				}
 				else
 				{
-					await DisplayAlert("AI Response", "No response from Azure OpenAI.", "OK");
+					_resultFormattedString.Spans.Add(new Span { Text = "No response from Azure OpenAI." + Environment.NewLine + Environment.NewLine });
 				}
 			}
-			
+
+			resultText.FormattedText = _resultFormattedString;
+			recordAudioButton.Text = $"Ask {SelectedAssistantName} 🎤";
+			// Scroll to bottom after updating text
+			await resultScrollView.ScrollToAsync(resultText, ScrollToPosition.End, true);
+
 			// Reset button text
-			recordAudioButton.Text = "Ask Ramu";
+
 		}
 	}
 
@@ -198,5 +214,14 @@ public partial class MainPage : ContentPage
             });
             return null;
         }
+    }
+
+	private void LanguagePicker_SelectedIndexChanged(object sender, EventArgs e)
+	{
+		var selectedLanguage = languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageCodes.Count
+			? languagePicker.Items[languagePicker.SelectedIndex]
+			: "English";
+		recordAudioButton.Text = $"Ask {SelectedAssistantName} 🎤";
+		this.Window.Title = $"Ask {SelectedAssistantName}";
     }
 }
