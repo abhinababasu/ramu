@@ -7,7 +7,7 @@ Ramu is a cross-platform .NET MAUI application that allows users to record speec
 
 [▶️ Watch the demo video (recording.mp4)](./recording.mp4)
 
-![Ramu App Screenshot](./screenshot.png)
+<img src="./Screenshot.png" alt="Ramu App Screenshot" width="750"/>
 
 ## Features
 - Record audio and transcribe speech in multiple languages
