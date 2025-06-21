@@ -7,7 +7,7 @@
 
     <VerticalStackLayout>
         <Picker x:Name="languagePicker" Title="Select Language" />
-        <Button x:Name="recordAudioButton" Text="Record Audio" Clicked="OnRecordAudioClicked" />
+        <Button x:Name="recordAudioButton" Text="Ask Ramu" Clicked="OnRecordAudioClicked" />
         <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html">
             <BlazorWebView.RootComponents>
                 <RootComponent Selector="#app" ComponentType="{x:Type components:Routes}" />

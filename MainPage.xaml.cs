@@ -40,12 +40,13 @@ public partial class MainPage : ContentPage
 		{
 			await _recorder.StartAsync();
 			_isRecording = true;
-			recordAudioButton.Text = "Stop Recording";
+			recordAudioButton.Text = "Stop Listening";
 		}
 		else
 		{
 			recordAudioButton.IsEnabled = false; // Disable button to prevent multiple clicks
-			recordAudioButton.Text = "Transcribing...";
+			// Change button text to indicate transcription 
+			recordAudioButton.Text = "Thinking...";
 			// Stop recording and show text
 			var transcription = await TranscribeAudioAsync();
 			if (!string.IsNullOrEmpty(transcription))
@@ -58,11 +59,26 @@ public partial class MainPage : ContentPage
 			}
 			_isRecording = false;
 			recordAudioButton.IsEnabled = true; // Re-enable button
+
+			// Send transcription to Azure OpenAI and display response
+			if (!string.IsNullOrEmpty(transcription))
+			{
+				var aiResponse = await GetAzureOpenAIChatResponseAsync(transcription);
+				if (!string.IsNullOrEmpty(aiResponse))
+				{
+					await DisplayAlert("AI Response", aiResponse, "OK");
+				}
+				else
+				{
+					await DisplayAlert("AI Response", "No response from Azure OpenAI.", "OK");
+				}
+			}
+			
 			// Reset button text
-			recordAudioButton.Text = "Record Audio";
+			recordAudioButton.Text = "Ask Ramu";
 		}
 	}
-	
+
 	private async Task<string?> TranscribeAudioAsync()
 	{
 		try
@@ -114,4 +130,73 @@ public partial class MainPage : ContentPage
 			return null;
 		}
 	}
+
+    private async Task<string?> GetAzureOpenAIChatResponseAsync(string prompt)
+    {
+        try
+        {
+            var endpoint = "https://ramu-openai.openai.azure.com/";
+            var deploymentName = "gpt-35-turbo";
+			var apiKey = Environment.GetEnvironmentVariable("AzOpenAIKey");
+			if (string.IsNullOrEmpty(apiKey))
+				throw new InvalidOperationException("AzOpenAIKey environment variable not set.");
+
+            using var client = new HttpClient();
+            client.DefaultRequestHeaders.Add("api-key", apiKey);
+
+            var requestBody = new
+            {
+                messages = new[]
+                {
+                    new { role = "user", content = prompt }
+                }
+            };
+			var options = new
+			{
+				temperature = 0.7,
+				max_tokens = 800,
+				top_p = 0.95,
+				frequency_penalty = 0,
+				presence_penalty = 0
+			};
+			var requestBodyWithOptions = new
+			{
+				messages = requestBody.messages,
+				temperature = options.temperature,
+				max_tokens = options.max_tokens,
+				top_p = options.top_p,
+				frequency_penalty = options.frequency_penalty,
+				presence_penalty = options.presence_penalty
+			};
+			var json = JsonSerializer.Serialize(requestBodyWithOptions);
+            
+            using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            var url = $"{endpoint}openai/deployments/{deploymentName}/chat/completions?api-version=2024-02-15-preview";
+            var response = await client.PostAsync(url, content);
+            response.EnsureSuccessStatusCode();
+
+            var responseJson = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(responseJson);
+            var message = doc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString();
+
+            return message;
+        }
+        catch (Exception ex)
+        {
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                var page = this.Window?.Page;
+                if (page != null)
+                {
+                    await page.DisplayAlert("Error", $"Azure OpenAI request failed: {ex.Message}", "OK");
+                }
+            });
+            return null;
+        }
+    }
 }
