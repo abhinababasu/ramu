@@ -10,13 +10,14 @@ public partial class MainPage : ContentPage
 	private IAudioManager _audioManager;
 	private IAudioRecorder _recorder;
 	private bool _isRecording = false;
+	private bool _isSpeakerEnabled = true;
 
-	private readonly Dictionary<string, (string SpeechCode, string AssistantName)> _languageCodes = new()
+	private readonly Dictionary<string, (string SpeechCode, string AssistantName, string TtsVoice)> _languageCodes = new()
 	{
-		{ "English", ("en-US", "Ramu") },
-		{ "Hindi", ("hi-IN", "रामु") },
-		{ "Bengali", ("bn-IN", "রামু ") },
-		{ "Spanish", ("es-ES", "Ramu") }
+		{ "English", ("en-US", "Ramu", "en-US-GuyNeural") },
+		{ "Hindi", ("hi-IN", "रामु", "hi-IN-MadhurNeural") },
+		{ "Bengali", ("bn-IN", "রামু ", "bn-IN-TanishaaNeural") },
+		{ "Spanish", ("es-ES", "Ramu", "es-ES-AlvaroNeural") }
 	};
 
 
@@ -32,6 +33,10 @@ public partial class MainPage : ContentPage
 		languagePicker.ItemsSource = _languageCodes.Keys.ToList();
 		languagePicker.SelectedIndex = 0; // Default to first language (English)
 		languagePicker.SelectedIndexChanged += LanguagePicker_SelectedIndexChanged;
+
+		speakerToggleButton.AutomationId = "SpeakerOn"; // Set only once
+		// Set initial speaker icon
+		UpdateSpeakerToggleButton();
 	}
 
 	private string SelectedLanguageCode =>
@@ -44,6 +49,11 @@ public partial class MainPage : ContentPage
 			? _languageCodes[languagePicker.Items[languagePicker.SelectedIndex]].AssistantName
 			: "Ramu";
 
+	private string SelectedVoice =>
+		languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageCodes.Count
+			? _languageCodes[languagePicker.Items[languagePicker.SelectedIndex]].TtsVoice
+			: "en-US-GuyNeural";
+
 	private async void OnRecordAudioClicked(object sender, EventArgs e)
 	{
 		if (!_isRecording)
@@ -55,43 +65,60 @@ public partial class MainPage : ContentPage
 		else
 		{
 			recordAudioButton.IsEnabled = false; // Disable button to prevent multiple clicks
-												 // Change button text to indicate transcription 
 			recordAudioButton.Text = "Thinking...";
-			// Stop recording and show text
-			var transcription = await TranscribeAudioAsync();
-			if (!string.IsNullOrEmpty(transcription))
+			try
 			{
-				_resultFormattedString.Spans.Add(new Span { Text = transcription + Environment.NewLine, FontAttributes = FontAttributes.Bold });
-			}
-			else
-			{
-				_resultFormattedString.Spans.Add(new Span { Text = "No transcription result." + Environment.NewLine, FontAttributes = FontAttributes.Italic });
-			}
-
-			_isRecording = false;
-			recordAudioButton.IsEnabled = true; // Re-enable button
-
-			// Send transcription to Azure OpenAI and display response
-			if (!string.IsNullOrEmpty(transcription))
-			{
-				var aiResponse = await GetAzureOpenAIChatResponseAsync(transcription);
-				if (!string.IsNullOrEmpty(aiResponse))
+				// Stop recording and show text
+				var transcription = await TranscribeAudioAsync();
+				if (!string.IsNullOrEmpty(transcription))
 				{
-					_resultFormattedString.Spans.Add(new Span { Text = aiResponse + Environment.NewLine + Environment.NewLine });
+					_resultFormattedString.Spans.Add(new Span { Text = transcription + Environment.NewLine, FontAttributes = FontAttributes.Bold });
 				}
 				else
 				{
-					_resultFormattedString.Spans.Add(new Span { Text = "No response from Azure OpenAI." + Environment.NewLine + Environment.NewLine });
+					_resultFormattedString.Spans.Add(new Span { Text = "No transcription result." + Environment.NewLine, FontAttributes = FontAttributes.Italic });
 				}
+
+
+				// Send transcription to Azure OpenAI and display response
+				if (!string.IsNullOrEmpty(transcription))
+				{
+					var aiResponse = await GetAzureOpenAIChatResponseAsync(transcription);
+					if (!string.IsNullOrEmpty(aiResponse))
+					{
+						_resultFormattedString.Spans.Add(new Span { Text = aiResponse + Environment.NewLine + Environment.NewLine });
+						if (_isSpeakerEnabled)
+						{
+							await SpeakTextAsync(aiResponse, SelectedLanguageCode);
+						}
+					}
+					else
+					{
+						_resultFormattedString.Spans.Add(new Span { Text = "No response from Azure OpenAI." + Environment.NewLine + Environment.NewLine });
+					}
+				}
+
+
+				recordAudioButton.Text = $"Ask {SelectedAssistantName} 🎤";
+				recordAudioButton.IsEnabled = true;				
+				_isRecording = false;
+
+
+				resultText.FormattedText = _resultFormattedString;
+				// This is a bug fix, 
+				// This is a known issue in .NET MAUI: await resultScrollView.ScrollToAsync(resultText, ScrollToPosition.End, true); can hang or never return if the layout hasn't 
+				// completed or if the content size hasn't updated yet. This is especially true right after updating the
+				MainThread.BeginInvokeOnMainThread(async () =>
+				{
+					await Task.Delay(50); // Give layout a moment to update
+					await resultScrollView.ScrollToAsync(resultText, ScrollToPosition.End, true);
+				});
+
 			}
+			finally
+			{
 
-			resultText.FormattedText = _resultFormattedString;
-			recordAudioButton.Text = $"Ask {SelectedAssistantName} 🎤";
-			// Scroll to bottom after updating text
-			await resultScrollView.ScrollToAsync(resultText, ScrollToPosition.End, true);
-
-			// Reset button text
-
+			}
 		}
 	}
 
@@ -216,6 +243,50 @@ public partial class MainPage : ContentPage
         }
     }
 
+	private async Task SpeakTextAsync(string text, string languageCode)
+	{
+		try
+		{
+			var apiKey = Environment.GetEnvironmentVariable("AzSpeechKey");
+			if (string.IsNullOrEmpty(apiKey))
+				throw new InvalidOperationException("AzSpeechKey environment variable not set.");
+			var region = "westus3"; // Change if your region is different
+			var endpoint = $"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1";
+
+			using var client = new HttpClient();
+			client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", apiKey);
+			client.DefaultRequestHeaders.Add("X-Microsoft-OutputFormat", "audio-16khz-32kbitrate-mono-mp3");
+			client.DefaultRequestHeaders.UserAgent.ParseAdd("ramu-maui-app/1.0");
+
+			var voice = SelectedVoice;
+
+			var ssml = $@"<speak version='1.0' xml:lang='{languageCode}'>
+				<voice name='{voice}'>{System.Security.SecurityElement.Escape(text)}</voice>
+			</speak>";
+
+			using var content = new StringContent(ssml);
+			content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/ssml+xml");
+
+			var response = await client.PostAsync(endpoint, content);
+			response.EnsureSuccessStatusCode();
+			var audioStream = await response.Content.ReadAsStreamAsync();
+
+			var audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
+			audioPlayer.Play();
+		}
+		catch (Exception ex)
+		{
+			await MainThread.InvokeOnMainThreadAsync(async () =>
+			{
+				var page = this.Window?.Page;
+				if (page != null)
+				{
+					await page.DisplayAlert("Error", $"Text-to-Speech failed: {ex.Message}", "OK");
+				}
+			});
+		}
+	}
+
 	private void LanguagePicker_SelectedIndexChanged(object sender, EventArgs e)
 	{
 		var selectedLanguage = languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageCodes.Count
@@ -224,4 +295,16 @@ public partial class MainPage : ContentPage
 		recordAudioButton.Text = $"Ask {SelectedAssistantName} 🎤";
 		this.Window.Title = $"Ask {SelectedAssistantName}";
     }
+
+	private void UpdateSpeakerToggleButton()
+	{
+		speakerToggleButton.Text = _isSpeakerEnabled ? "🔈" : "🔇";
+		// Do not set AutomationId here (can only be set once)
+	}
+
+	private void OnSpeakerToggleButtonClicked(object sender, EventArgs e)
+	{
+		_isSpeakerEnabled = !_isSpeakerEnabled;
+		UpdateSpeakerToggleButton();
+	}
 }

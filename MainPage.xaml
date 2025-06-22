@@ -10,8 +10,12 @@
             <Label x:Name="resultText" FontSize="22" LineBreakMode="WordWrap" HorizontalOptions="Fill" VerticalOptions="Fill" />
         </ScrollView>
         <Border Grid.Row="1" StrokeThickness="0" StrokeShape="RoundRectangle 10" BackgroundColor="Transparent" Margin="0,20,0,10" Padding="20">
-            <Button x:Name="recordAudioButton" Text="Ask Ramu 🎤" Clicked="OnRecordAudioClicked"
-            FontSize="28" HeightRequest="80" CornerRadius="40" HorizontalOptions="Fill" />
+            <Grid ColumnDefinitions="*,Auto">
+                <Button x:Name="recordAudioButton" Text="Ask Ramu 🎤" Clicked="OnRecordAudioClicked"
+                        FontSize="28" HeightRequest="80" CornerRadius="40" HorizontalOptions="Fill" />
+                <Button x:Name="speakerToggleButton" Grid.Column="1" WidthRequest="60" HeightRequest="60" Margin="10,0,0,0"
+                        Clicked="OnSpeakerToggleButtonClicked" FontSize="32" VerticalOptions="Center" Text="🔈" />
+            </Grid>
         </Border>
         <Border Grid.Row="2" StrokeThickness="0" StrokeShape="RoundRectangle 10" BackgroundColor="Transparent" Margin="0,0,0,10" Padding="20">
             <Picker x:Name="languagePicker" Title="Select Language" HorizontalOptions="Fill" HorizontalTextAlignment="Center" />
