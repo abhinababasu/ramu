@@ -11,6 +11,7 @@ public partial class MainPage : ContentPage
 	private IAudioRecorder _recorder;
 	private bool _isRecording = false;
 	private bool _isSpeakerEnabled = true;
+	private IAudioPlayer? _ttsPlayer; // Track current TTS playback
 
 	private readonly Dictionary<string, (string SpeechCode, string AssistantName, string TtsVoice)> _languageCodes = new()
 	{
@@ -56,6 +57,13 @@ public partial class MainPage : ContentPage
 
 	private async void OnRecordAudioClicked(object sender, EventArgs e)
 	{
+		// Stop any ongoing TTS playback before recording
+		if (_ttsPlayer != null)
+		{
+			try { _ttsPlayer.Stop(); } catch { }
+			try { _ttsPlayer.Dispose(); } catch { }
+			_ttsPlayer = null;
+		}
 		if (!_isRecording)
 		{
 			await _recorder.StartAsync();
@@ -66,59 +74,49 @@ public partial class MainPage : ContentPage
 		{
 			recordAudioButton.IsEnabled = false; // Disable button to prevent multiple clicks
 			recordAudioButton.Text = "Thinking...";
-			try
+
+			// Stop recording and show text
+			var transcription = await TranscribeAudioAsync();
+			if (!string.IsNullOrEmpty(transcription))
 			{
-				// Stop recording and show text
-				var transcription = await TranscribeAudioAsync();
-				if (!string.IsNullOrEmpty(transcription))
+				_resultFormattedString.Spans.Add(new Span { Text = transcription + Environment.NewLine, FontAttributes = FontAttributes.Bold });
+			}
+			else
+			{
+				_resultFormattedString.Spans.Add(new Span { Text = "No transcription result." + Environment.NewLine, FontAttributes = FontAttributes.Italic });
+			}
+
+			// Send transcription to Azure OpenAI and display response
+			if (!string.IsNullOrEmpty(transcription))
+			{
+				var aiResponse = await GetAzureOpenAIChatResponseAsync(transcription);
+				if (!string.IsNullOrEmpty(aiResponse))
 				{
-					_resultFormattedString.Spans.Add(new Span { Text = transcription + Environment.NewLine, FontAttributes = FontAttributes.Bold });
+					_resultFormattedString.Spans.Add(new Span { Text = aiResponse + Environment.NewLine + Environment.NewLine });
+					if (_isSpeakerEnabled)
+					{
+						await SpeakTextAsync(aiResponse, SelectedLanguageCode);
+					}
 				}
 				else
 				{
-					_resultFormattedString.Spans.Add(new Span { Text = "No transcription result." + Environment.NewLine, FontAttributes = FontAttributes.Italic });
+					_resultFormattedString.Spans.Add(new Span { Text = "No response from Azure OpenAI." + Environment.NewLine + Environment.NewLine });
 				}
-
-
-				// Send transcription to Azure OpenAI and display response
-				if (!string.IsNullOrEmpty(transcription))
-				{
-					var aiResponse = await GetAzureOpenAIChatResponseAsync(transcription);
-					if (!string.IsNullOrEmpty(aiResponse))
-					{
-						_resultFormattedString.Spans.Add(new Span { Text = aiResponse + Environment.NewLine + Environment.NewLine });
-						if (_isSpeakerEnabled)
-						{
-							await SpeakTextAsync(aiResponse, SelectedLanguageCode);
-						}
-					}
-					else
-					{
-						_resultFormattedString.Spans.Add(new Span { Text = "No response from Azure OpenAI." + Environment.NewLine + Environment.NewLine });
-					}
-				}
-
-
-				recordAudioButton.Text = $"Ask {SelectedAssistantName} 🎤";
-				recordAudioButton.IsEnabled = true;				
-				_isRecording = false;
-
-
-				resultText.FormattedText = _resultFormattedString;
-				// This is a bug fix, 
-				// This is a known issue in .NET MAUI: await resultScrollView.ScrollToAsync(resultText, ScrollToPosition.End, true); can hang or never return if the layout hasn't 
-				// completed or if the content size hasn't updated yet. This is especially true right after updating the
-				MainThread.BeginInvokeOnMainThread(async () =>
-				{
-					await Task.Delay(50); // Give layout a moment to update
-					await resultScrollView.ScrollToAsync(resultText, ScrollToPosition.End, true);
-				});
-
 			}
-			finally
+
+			recordAudioButton.Text = $"Ask {SelectedAssistantName} 🎤";
+			recordAudioButton.IsEnabled = true;				
+			_isRecording = false;
+
+			resultText.FormattedText = _resultFormattedString;
+			// This is a bug fix, 
+			// This is a known issue in .NET MAUI: await resultScrollView.ScrollToAsync(resultText, ScrollToPosition.End, true); can hang or never return if the layout hasn't 
+			// completed or if the content size hasn't updated yet. This is especially true right after updating the
+			MainThread.BeginInvokeOnMainThread(async () =>
 			{
-
-			}
+				await Task.Delay(50); // Give layout a moment to update
+				await resultScrollView.ScrollToAsync(resultText, ScrollToPosition.End, true);
+			});
 		}
 	}
 
@@ -271,8 +269,14 @@ public partial class MainPage : ContentPage
 			response.EnsureSuccessStatusCode();
 			var audioStream = await response.Content.ReadAsStreamAsync();
 
-			var audioPlayer = AudioManager.Current.CreatePlayer(audioStream);
-			audioPlayer.Play();
+			// Stop any previous TTS playback
+			if (_ttsPlayer != null)
+			{
+				try { _ttsPlayer.Stop(); } catch { }
+				try { _ttsPlayer.Dispose(); } catch { }
+			}
+			_ttsPlayer = AudioManager.Current.CreatePlayer(audioStream);
+			_ttsPlayer.Play();
 		}
 		catch (Exception ex)
 		{
