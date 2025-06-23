@@ -13,7 +13,9 @@ public partial class MainPage : ContentPage
 	private bool _isSpeakerEnabled = true;
 	private IAudioPlayer? _ttsPlayer; // Track current TTS playback
 
-	private readonly Dictionary<string, (string SpeechCode, string AssistantName, string TtsVoice)> _languageCodes = new()
+	// Dictionary to hold language setup information
+	// Key: Language name, Value: Tuple of (SpeechCode, AssistantName, TtsVoice)
+	private readonly Dictionary<string, (string SpeechCode, string AssistantName, string TtsVoice)> _languageSetup = new()
 	{
 		{ "English", ("en-US", "Ramu", "en-US-GuyNeural") },
 		{ "Hindi", ("hi-IN", "रामु", "hi-IN-MadhurNeural") },
@@ -23,6 +25,7 @@ public partial class MainPage : ContentPage
 
 
 	private FormattedString _resultFormattedString = new FormattedString();
+	private readonly HttpClient _httpClient = new();
 
 	public MainPage()
 	{
@@ -31,7 +34,7 @@ public partial class MainPage : ContentPage
 		_recorder = _audioManager.CreateRecorder();
 
 		// Initialize language picker
-		languagePicker.ItemsSource = _languageCodes.Keys.ToList();
+		languagePicker.ItemsSource = _languageSetup.Keys.ToList();
 		languagePicker.SelectedIndex = 0; // Default to first language (English)
 		languagePicker.SelectedIndexChanged += LanguagePicker_SelectedIndexChanged;
 
@@ -41,18 +44,18 @@ public partial class MainPage : ContentPage
 	}
 
 	private string SelectedLanguageCode =>
-		languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageCodes.Count
-			? _languageCodes[languagePicker.Items[languagePicker.SelectedIndex]].SpeechCode
+		languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageSetup.Count
+			? _languageSetup[languagePicker.Items[languagePicker.SelectedIndex]].SpeechCode
 			: "en-US";
 
 	private string SelectedAssistantName =>
-		languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageCodes.Count
-			? _languageCodes[languagePicker.Items[languagePicker.SelectedIndex]].AssistantName
+		languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageSetup.Count
+			? _languageSetup[languagePicker.Items[languagePicker.SelectedIndex]].AssistantName
 			: "Ramu";
 
 	private string SelectedVoice =>
-		languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageCodes.Count
-			? _languageCodes[languagePicker.Items[languagePicker.SelectedIndex]].TtsVoice
+		languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageSetup.Count
+			? _languageSetup[languagePicker.Items[languagePicker.SelectedIndex]].TtsVoice
 			: "en-US-GuyNeural";
 
 	private async void OnRecordAudioClicked(object sender, EventArgs e)
@@ -138,8 +141,9 @@ public partial class MainPage : ContentPage
 				throw new InvalidOperationException("AzSpeechKey environment variable not set.");
 
 			Debug.WriteLine($"AzSpeechKey: {apiKey}");
-			using var client = new HttpClient();
-			client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", apiKey);
+			// Clear and set headers for this request
+			_httpClient.DefaultRequestHeaders.Clear();
+			_httpClient.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", apiKey);
 
 			// Use selected language
 			var languageCode = SelectedLanguageCode;
@@ -148,7 +152,7 @@ public partial class MainPage : ContentPage
 			content.Headers.ContentType = new MediaTypeHeaderValue("audio/wav");
 
 			// Send request
-			var response = await client.PostAsync(requestUri, content);
+			var response = await _httpClient.PostAsync(requestUri, content);
 			response.EnsureSuccessStatusCode();
 
 			// Parse response
@@ -182,8 +186,9 @@ public partial class MainPage : ContentPage
 			if (string.IsNullOrEmpty(apiKey))
 				throw new InvalidOperationException("AzOpenAIKey environment variable not set.");
 
-            using var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("api-key", apiKey);
+			// Clear and set headers for this request
+			_httpClient.DefaultRequestHeaders.Clear();
+			_httpClient.DefaultRequestHeaders.Add("api-key", apiKey);
 
             var requestBody = new
             {
@@ -210,11 +215,10 @@ public partial class MainPage : ContentPage
 				presence_penalty = options.presence_penalty
 			};
 			var json = JsonSerializer.Serialize(requestBodyWithOptions);
-            
-            using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+			using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-            var url = $"{endpoint}openai/deployments/{deploymentName}/chat/completions?api-version=2024-02-15-preview";
-            var response = await client.PostAsync(url, content);
+			var url = $"{endpoint}openai/deployments/{deploymentName}/chat/completions?api-version=2024-02-15-preview";
+            var response = await _httpClient.PostAsync(url, content);
             response.EnsureSuccessStatusCode();
 
             var responseJson = await response.Content.ReadAsStringAsync();
@@ -251,10 +255,11 @@ public partial class MainPage : ContentPage
 			var region = "westus3"; // Change if your region is different
 			var endpoint = $"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1";
 
-			using var client = new HttpClient();
-			client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", apiKey);
-			client.DefaultRequestHeaders.Add("X-Microsoft-OutputFormat", "audio-16khz-32kbitrate-mono-mp3");
-			client.DefaultRequestHeaders.UserAgent.ParseAdd("ramu-maui-app/1.0");
+			// Clear and set headers for this request
+			_httpClient.DefaultRequestHeaders.Clear();
+			_httpClient.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", apiKey);
+			_httpClient.DefaultRequestHeaders.Add("X-Microsoft-OutputFormat", "audio-16khz-32kbitrate-mono-mp3");
+			_httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("ramu-maui-app/1.0");
 
 			var voice = SelectedVoice;
 
@@ -265,7 +270,7 @@ public partial class MainPage : ContentPage
 			using var content = new StringContent(ssml);
 			content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/ssml+xml");
 
-			var response = await client.PostAsync(endpoint, content);
+			var response = await _httpClient.PostAsync(endpoint, content);
 			response.EnsureSuccessStatusCode();
 			var audioStream = await response.Content.ReadAsStreamAsync();
 
@@ -293,7 +298,7 @@ public partial class MainPage : ContentPage
 
 	private void LanguagePicker_SelectedIndexChanged(object sender, EventArgs e)
 	{
-		var selectedLanguage = languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageCodes.Count
+		var selectedLanguage = languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageSetup.Count
 			? languagePicker.Items[languagePicker.SelectedIndex]
 			: "English";
 		recordAudioButton.Text = $"Ask {SelectedAssistantName} 🎤";
