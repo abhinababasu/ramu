@@ -36,8 +36,9 @@ public partial class MainPage : ContentPage
 		// Initialize language picker
 		languagePicker.ItemsSource = _languageSetup.Keys.ToList();
 		languagePicker.SelectedIndex = 0; // Default to first language (English)
+#pragma warning disable CS8622
 		languagePicker.SelectedIndexChanged += LanguagePicker_SelectedIndexChanged;
-
+#pragma warning restore CS8622
 		speakerToggleButton.AutomationId = "SpeakerOn"; // Set only once
 		// Set initial speaker icon
 		UpdateSpeakerToggleButton();
@@ -296,6 +297,7 @@ public partial class MainPage : ContentPage
 		}
 	}
 
+#pragma warning disable CS8622
 	private void LanguagePicker_SelectedIndexChanged(object sender, EventArgs e)
 	{
 		var selectedLanguage = languagePicker.SelectedIndex >= 0 && languagePicker.SelectedIndex < _languageSetup.Count
@@ -303,7 +305,8 @@ public partial class MainPage : ContentPage
 			: "English";
 		recordAudioButton.Text = $"Ask {SelectedAssistantName} 🎤";
 		this.Window.Title = $"Ask {SelectedAssistantName}";
-    }
+	}
+#pragma warning restore CS8622
 
 	private void UpdateSpeakerToggleButton()
 	{
