@@ -20,7 +20,8 @@ public partial class MainPage : ContentPage
 		{ "English", ("en-US", "Ramu", "en-US-GuyNeural") },
 		{ "Hindi", ("hi-IN", "रामु", "hi-IN-MadhurNeural") },
 		{ "Bengali", ("bn-IN", "রামু ", "bn-IN-TanishaaNeural") },
-		{ "Spanish", ("es-ES", "Ramu", "es-ES-AlvaroNeural") }
+		{ "Spanish", ("es-ES", "Ramu", "es-ES-AlvaroNeural") },
+		{ "Tamil", ("ta-IN", "ராமு", "ta-IN-ValluvarNeural") }
 	};
 
 
