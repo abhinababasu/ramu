@@ -24,6 +24,13 @@ public partial class MainPage : ContentPage
 		{ "Tamil", ("ta-IN", "ராமு", "ta-IN-ValluvarNeural") }
 	};
 
+	// Constants for Azure OpenAI configuration
+	// These should match your Azure OpenAI deployment settings 
+	private const string endpoint = "https://ramu-openai.openai.azure.com/";
+    private const string deploymentName = "gpt-35-turbo";
+    private const string apiVersion = "2024-02-15-preview";
+	private readonly string? apiKey = Environment.GetEnvironmentVariable("AzOpenAIKey");
+
 
 	private FormattedString _resultFormattedString = new FormattedString();
 	private readonly HttpClient _httpClient = new();
@@ -182,9 +189,7 @@ public partial class MainPage : ContentPage
     {
         try
         {
-            var endpoint = "https://ramu-openai.openai.azure.com/";
-            var deploymentName = "gpt-35-turbo";
-			var apiKey = Environment.GetEnvironmentVariable("AzOpenAIKey");
+           
 			if (string.IsNullOrEmpty(apiKey))
 				throw new InvalidOperationException("AzOpenAIKey environment variable not set.");
 
@@ -219,7 +224,7 @@ public partial class MainPage : ContentPage
 			var json = JsonSerializer.Serialize(requestBodyWithOptions);
 			using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-			var url = $"{endpoint}openai/deployments/{deploymentName}/chat/completions?api-version=2024-02-15-preview";
+			var url = $"{endpoint}openai/deployments/{deploymentName}/chat/completions?api-version={apiVersion}";
             var response = await _httpClient.PostAsync(url, content);
             response.EnsureSuccessStatusCode();
 

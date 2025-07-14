@@ -2,6 +2,7 @@ using System.Collections.Generic;
 
 namespace ramu.Services
 {
+    /*
     /// <summary>
     /// Provides language and voice configuration for speech services.
     /// </summary>
@@ -24,4 +25,5 @@ namespace ramu.Services
             { "Tamil", ("ta-IN", "ta-IN-ValluvarNeural") },
         };
     }
+    */
 }
