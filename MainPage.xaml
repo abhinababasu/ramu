@@ -18,7 +18,15 @@
             </Grid>
         </Border>
         <Border Grid.Row="2" StrokeThickness="0" StrokeShape="RoundRectangle 10" BackgroundColor="Transparent" Margin="0,0,0,10" Padding="20">
-            <Picker x:Name="languagePicker" Title="Select Language" HorizontalOptions="Fill" HorizontalTextAlignment="Center" />
+            <StackLayout Orientation="Horizontal" HorizontalOptions="Fill" Spacing="20">
+                <Picker x:Name="openAIModePicker" Title="OpenAI Model" SelectedIndex="0" HorizontalOptions="Fill" HorizontalTextAlignment="Center">
+                    <Picker.Items>
+                        <x:String>gpt-4o</x:String>
+                        <x:String>gpt-35-turbo</x:String>
+                    </Picker.Items>
+                </Picker>
+                <Picker x:Name="languagePicker" Title="Select Language" HorizontalOptions="Fill" HorizontalTextAlignment="Center" />
+            </StackLayout>
         </Border>
         <BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html" IsVisible="False" />
     </Grid>

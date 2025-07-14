@@ -31,7 +31,7 @@ public partial class MainPage : ContentPage
 		{ "openAI40", ("gpt-4o", "2025-01-01-preview", "AzOpenAIKey-40") }
 	};
 
-	private string SelectedOpenAIKey => "openAI40"; // You can change this dynamically as needed
+	private string SelectedOpenAIKey => openAIModePicker.SelectedIndex == 0 ? "openAI40" : "openAI35";
 
 	private (string DeploymentName, string ApiVersion, string ApiKeyName) SelectedOpenAIConfig =>
 		OpenAIDeployments.TryGetValue(SelectedOpenAIKey, out var config) ? config : OpenAIDeployments["openAI35"];
@@ -44,6 +44,7 @@ public partial class MainPage : ContentPage
 	public MainPage()
 	{
 		InitializeComponent();
+		openAIModePicker.SelectedIndex = 0; // Set default selection for OpenAI Model picker
 		_audioManager = AudioManager.Current;
 		_recorder = _audioManager.CreateRecorder();
 
@@ -56,6 +57,12 @@ public partial class MainPage : ContentPage
 		speakerToggleButton.AutomationId = "SpeakerOn"; // Set only once
 		// Set initial speaker icon
 		UpdateSpeakerToggleButton();
+
+		openAIModePicker.SelectedIndexChanged += (s, e) =>
+		{
+			// Force update of SelectedOpenAIKey property by raising PropertyChanged if needed
+			// Or, if you use SelectedOpenAIKey directly, just ensure you always read from openAIModePicker.SelectedIndex
+		};
 	}
 
 	private string SelectedLanguageCode =>
@@ -111,6 +118,7 @@ public partial class MainPage : ContentPage
 				if (!string.IsNullOrEmpty(aiResponse))
 				{
 					_resultFormattedString.Spans.Add(new Span { Text = aiResponse + Environment.NewLine + Environment.NewLine });
+					
 					if (_isSpeakerEnabled)
 					{
 						await SpeakTextAsync(aiResponse, SelectedLanguageCode);
@@ -155,7 +163,7 @@ public partial class MainPage : ContentPage
 			if (string.IsNullOrEmpty(apiKey))
 				throw new InvalidOperationException("AzSpeechKey environment variable not set.");
 
-			Debug.WriteLine($"AzSpeechKey: {apiKey}");
+			
 			// Clear and set headers for this request
 			_httpClient.DefaultRequestHeaders.Clear();
 			_httpClient.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", apiKey);
@@ -231,6 +239,7 @@ public partial class MainPage : ContentPage
 			using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
 			var url = $"{endpoint}openai/deployments/{SelectedOpenAIConfig.DeploymentName}/chat/completions?api-version={SelectedOpenAIConfig.ApiVersion}";
+			Debug.WriteLine($"Request URL: {url}");
             var response = await _httpClient.PostAsync(url, content);
             response.EnsureSuccessStatusCode();
 
@@ -242,6 +251,13 @@ public partial class MainPage : ContentPage
                 .GetProperty("content")
                 .GetString();
 
+			Debug.WriteLine("Azure OpenAI Response Headers:");
+			foreach (var header in response.Headers)
+			{
+				Debug.WriteLine($"{header.Key}: {string.Join(", ", header.Value)}");
+			}
+			Debug.WriteLine("Azure OpenAI Response Body:");
+			Debug.WriteLine(responseJson);
             return message;
         }
         catch (Exception ex)
