@@ -24,13 +24,19 @@ public partial class MainPage : ContentPage
 		{ "Tamil", ("ta-IN", "ராமு", "ta-IN-ValluvarNeural") }
 	};
 
-	// Constants for Azure OpenAI configuration
-	// These should match your Azure OpenAI deployment settings 
 	private const string endpoint = "https://ramu-openai.openai.azure.com/";
-    private const string deploymentName = "gpt-35-turbo";
-    private const string apiVersion = "2024-02-15-preview";
-	private readonly string? apiKey = Environment.GetEnvironmentVariable("AzOpenAIKey");
+	private static readonly Dictionary<string, (string DeploymentName, string ApiVersion, string ApiKeyName)> OpenAIDeployments = new()
+	{
+		{ "openAI35", ("gpt-35-turbo", "2024-02-15-preview", "AzOpenAIKey-35") },
+		{ "openAI40", ("gpt-4o", "2025-01-01-preview", "AzOpenAIKey-40") }
+	};
 
+	private string SelectedOpenAIKey => "openAI40"; // You can change this dynamically as needed
+
+	private (string DeploymentName, string ApiVersion, string ApiKeyName) SelectedOpenAIConfig =>
+		OpenAIDeployments.TryGetValue(SelectedOpenAIKey, out var config) ? config : OpenAIDeployments["openAI35"];
+
+	private string? ApiKey => Environment.GetEnvironmentVariable(SelectedOpenAIConfig.ApiKeyName);
 
 	private FormattedString _resultFormattedString = new FormattedString();
 	private readonly HttpClient _httpClient = new();
@@ -67,7 +73,7 @@ public partial class MainPage : ContentPage
 			? _languageSetup[languagePicker.Items[languagePicker.SelectedIndex]].TtsVoice
 			: "en-US-GuyNeural";
 
-	private async void OnRecordAudioClicked(object sender, EventArgs e)
+    private async void OnRecordAudioClicked(object sender, EventArgs e)
 	{
 		// Stop any ongoing TTS playback before recording
 		if (_ttsPlayer != null)
@@ -190,12 +196,12 @@ public partial class MainPage : ContentPage
         try
         {
            
-			if (string.IsNullOrEmpty(apiKey))
+			if (string.IsNullOrEmpty(ApiKey))
 				throw new InvalidOperationException("AzOpenAIKey environment variable not set.");
 
 			// Clear and set headers for this request
 			_httpClient.DefaultRequestHeaders.Clear();
-			_httpClient.DefaultRequestHeaders.Add("api-key", apiKey);
+			_httpClient.DefaultRequestHeaders.Add("api-key", ApiKey);
 
             var requestBody = new
             {
@@ -224,7 +230,7 @@ public partial class MainPage : ContentPage
 			var json = JsonSerializer.Serialize(requestBodyWithOptions);
 			using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
 
-			var url = $"{endpoint}openai/deployments/{deploymentName}/chat/completions?api-version={apiVersion}";
+			var url = $"{endpoint}openai/deployments/{SelectedOpenAIConfig.DeploymentName}/chat/completions?api-version={SelectedOpenAIConfig.ApiVersion}";
             var response = await _httpClient.PostAsync(url, content);
             response.EnsureSuccessStatusCode();
 
